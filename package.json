@@ -1,0 +1,17 @@
+{
+  "name": "mother-roots",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix Lab_backend && npm install --prefix lab-frontend",
+    "dev": "concurrently \"npm run dev --prefix Lab_backend\" \"npm run dev --prefix lab-frontend\"",
+    "backend": "npm run dev --prefix Lab_backend",
+    "frontend": "npm run dev --prefix lab-frontend",
+    "lint": "npm run lint --prefix lab-frontend",
+    "build": "npm run build --prefix lab-frontend",
+    "preview": "npm run preview --prefix lab-frontend",
+    "start": "npm run start --prefix Lab_backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

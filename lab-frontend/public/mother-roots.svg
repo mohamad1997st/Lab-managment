@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>Mother Roots</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14532d" />
+      <stop offset="100%" stop-color="#84cc16" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#bg)" />
+  <path
+    d="M32 14c-7 0-12 4.7-12 11 0 4.2 2.1 7.1 5.6 9.1-3.5 2.1-5.8 5.5-7.1 10.2-.6 2 .8 4 2.9 4 1.3 0 2.4-.8 2.8-2.1 1.2-4.3 3.1-6.8 7-7.9V50a3 3 0 0 0 6 0V38.3c3.8 1.1 5.8 3.5 6.9 7.8.4 1.3 1.5 2.2 2.9 2.2 2.1 0 3.5-2 2.9-4-1.4-4.7-3.7-8.1-7.2-10.2 3.6-2 5.6-4.9 5.6-9.1 0-6.3-5-11-12.3-11Zm0 6c3.4 0 6 2.1 6 5.1 0 3.3-2.8 5.3-6 6.8-3.2-1.5-6-3.5-6-6.8 0-3 2.6-5.1 6-5.1Z"
+    fill="#f7fee7"
+  />
+</svg>
