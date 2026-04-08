@@ -1,0 +1,19 @@
+# Reduce upload size for Vercel CLI deployments.
+# Git-based deployments already only include tracked files.
+
+.git
+.vscode
+
+**/node_modules
+
+# Backend isn't deployed as part of the static frontend.
+Lab_backend
+
+# Build output is created during the Vercel build step.
+**/dist
+**/dist-ssr
+
+# Never upload secrets
+**/.env
+**/.env.*
+
