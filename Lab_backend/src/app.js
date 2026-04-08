@@ -7,6 +7,7 @@ const billingController = require('./controllers/billing.controller');
 const app = express();
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const FORCE_HTTPS = String(process.env.FORCE_HTTPS || '').toLowerCase() === 'true';
+const ALLOW_VERCEL_PREVIEWS = String(process.env.ALLOW_VERCEL_PREVIEWS || '').toLowerCase() === 'true';
 
 if (NODE_ENV === 'production') {
   // Render/Vercel proxies terminate TLS before forwarding to Node.
@@ -17,6 +18,13 @@ const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+  if (corsOrigins.includes(origin)) return true;
+  if (ALLOW_VERCEL_PREVIEWS && /^https:\/\/[-a-z0-9]+\.vercel\.app$/i.test(origin)) return true;
+  return false;
+}
 
 app.use(cookieParser());
 
@@ -44,7 +52,7 @@ app.use((req, res, next) => {
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || corsOrigins.includes(origin)) {
+    if (isAllowedCorsOrigin(origin)) {
       return callback(null, true);
     }
     return callback(new Error('CORS origin not allowed'));
