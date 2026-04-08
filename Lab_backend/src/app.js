@@ -54,6 +54,15 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Health endpoint for platforms like Render (useful for quick diagnostics)
+app.get('/', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: 'lab_backend',
+    env: NODE_ENV
+  });
+});
+
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingController.handleStripeWebhook);
 
 app.use(express.json());
