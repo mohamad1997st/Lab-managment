@@ -27,8 +27,6 @@ function main() {
   if (!fs.existsSync(viteChunkPath)) return
 
   const before = fs.readFileSync(viteChunkPath, 'utf8')
-  if (before.includes('\ttry {\n\t\texec("net use",')) return
-
   const anchor = '\texec("net use", (error$1, stdout) => {'
   const startIndex = before.indexOf(anchor)
   if (startIndex === -1) {
@@ -44,13 +42,31 @@ function main() {
   }
 
   const execCallEndIndex = closeMarkerIndex + '\t});'.length
-
-  const patched =
-    before.slice(0, startIndex) +
+  const patchedBlock =
     '\ttry {\n' +
     before.slice(startIndex, execCallEndIndex) +
-    '\n\t} catch (e$1) {\n\t\tsafeRealpathSync = fs.realpathSync.native;\n\t}\n' +
-    before.slice(execCallEndIndex)
+    '\n\t} catch (e$1) {\n\t\tsafeRealpathSync = fs.realpathSync.native;\n\t}\n'
+
+  const currentBlock = before.slice(startIndex - '\ttry {\n'.length, execCallEndIndex + '\n\t} catch (e$1) {\n\t\tsafeRealpathSync = fs.realpathSync.native;\n\t}\n'.length)
+  if (currentBlock === patchedBlock) return
+
+  const patchStartIndex = before.lastIndexOf('\n', startIndex - 1) + 1
+  const existingTryIndex = before.lastIndexOf('\ttry {\n', startIndex)
+  const safePatchStartIndex =
+    existingTryIndex >= patchStartIndex - '\ttry {\n'.length && existingTryIndex === patchStartIndex
+      ? existingTryIndex
+      : startIndex
+
+  let patchEndIndex = execCallEndIndex
+  const catchSuffix = '\n\t} catch (e$1) {\n\t\tsafeRealpathSync = fs.realpathSync.native;\n\t}\n'
+  if (before.startsWith(catchSuffix, execCallEndIndex)) {
+    patchEndIndex = execCallEndIndex + catchSuffix.length
+  }
+
+  const patched =
+    before.slice(0, safePatchStartIndex) +
+    patchedBlock +
+    before.slice(patchEndIndex)
 
   fs.writeFileSync(viteChunkPath, patched, 'utf8')
   console.log('[patch-vite] applied Windows net-use exec guard')

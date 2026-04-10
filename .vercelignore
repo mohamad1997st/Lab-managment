@@ -17,3 +17,5 @@ Lab_backend
 **/.env
 **/.env.*
 
+# Keep top-level docs out of static deploy uploads.
+README.md

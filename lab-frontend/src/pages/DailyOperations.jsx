@@ -16,6 +16,8 @@ import SubscriptionAlertAction from '../components/SubscriptionAlertAction';
 import { downloadPdf } from '../utils/pdfDownload';
 import { getFriendlyApiError, hasSubscriptionResolution } from '../utils/subscriptionErrors';
 
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
 export default function DailyOperations({ currentUser }) {
   const isStaff = currentUser?.role === 'staff';
   const staffLabel = currentUser?.full_name || currentUser?.username || 'Current staff user';
@@ -44,14 +46,14 @@ export default function DailyOperations({ currentUser }) {
     phase: ''
   });
 
-  const selectedInventory = inventory.find((i) => String(i.id) === String(form.inventory_id));
+  const selectedInventory = asArray(inventory).find((i) => String(i.id) === String(form.inventory_id));
   const availableMotherJars = selectedInventory ? Number(selectedInventory.number_mother_jar ?? 0) : null;
 
   useEffect(() => {
     if (!isStaff) {
-      api.get('/employees').then((res) => setEmployees(res.data));
-      api.get('/species').then((res) => setSpecies(res.data));
-      api.get('/inventory').then((res) => setInventory(res.data));
+      api.get('/employees').then((res) => setEmployees(asArray(res.data)));
+      api.get('/species').then((res) => setSpecies(asArray(res.data)));
+      api.get('/inventory').then((res) => setInventory(asArray(res.data)));
     }
     fetchOps(1, filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,7 +70,7 @@ export default function DailyOperations({ currentUser }) {
     if (f.phase) params.append('phase', f.phase);
 
     const res = await api.get(`/daily-operations?${params.toString()}`);
-    setOps(res.data.data || []);
+    setOps(asArray(res.data?.data));
     setMeta({
       total: res.data.total ?? 0,
       totalPages: res.data.totalPages ?? 1,
@@ -193,7 +195,7 @@ export default function DailyOperations({ currentUser }) {
                 fullWidth
               >
                 <MenuItem value=""><em>Select</em></MenuItem>
-                {employees.map((emp) => (
+                {asArray(employees).map((emp) => (
                   <MenuItem key={emp.id} value={emp.id}>{emp.full_name}</MenuItem>
                 ))}
               </TextField>
@@ -212,7 +214,7 @@ export default function DailyOperations({ currentUser }) {
               }
             >
               <MenuItem value=""><em>Select</em></MenuItem>
-              {inventory.map((i) => (
+              {asArray(inventory).map((i) => (
                 <MenuItem key={i.id} value={i.id}>
                   {i.species_name} - Sub {i.subculture_mother_jars} - Mother jars: {i.number_mother_jar} (ID {i.id})
                 </MenuItem>
@@ -308,7 +310,7 @@ export default function DailyOperations({ currentUser }) {
               fullWidth
             >
               <MenuItem value=""><em>All</em></MenuItem>
-              {employees.map((emp) => (
+              {asArray(employees).map((emp) => (
                 <MenuItem key={emp.id} value={emp.id}>{emp.full_name}</MenuItem>
               ))}
             </TextField>
@@ -323,7 +325,7 @@ export default function DailyOperations({ currentUser }) {
               fullWidth
             >
               <MenuItem value=""><em>All</em></MenuItem>
-              {species.map((sp) => (
+              {asArray(species).map((sp) => (
                 <MenuItem key={sp.id} value={sp.id}>{sp.species_name}</MenuItem>
               ))}
             </TextField>
@@ -382,14 +384,14 @@ export default function DailyOperations({ currentUser }) {
           </TableHead>
 
           <TableBody>
-            {ops.length === 0 ? (
+            {asArray(ops).length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} sx={{ opacity: 0.7 }}>
                   No operations found
                 </TableCell>
               </TableRow>
             ) : (
-              ops.map((row) => (
+              asArray(ops).map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>{row.id}</TableCell>
                   <TableCell>{String(row.operations_date).slice(0, 10)}</TableCell>
