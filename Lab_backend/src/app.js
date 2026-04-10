@@ -14,15 +14,47 @@ if (NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+const rawCorsOrigins = [process.env.CORS_ORIGIN, process.env.APP_ORIGIN]
+  .filter(Boolean)
+  .join(',');
+
+const corsOrigins = (rawCorsOrigins || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+function normalizeOrigin(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+  try {
+    const url = new URL(trimmed);
+    return `${url.protocol}//${url.host}`;
+  } catch (err) {
+    return trimmed.replace(/\/+$/, '');
+  }
+}
+
+function isLocalDevOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    const hostname = (url.hostname || '').toLowerCase();
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1')
+    );
+  } catch (err) {
+    return false;
+  }
+}
+
+const allowedCorsOrigins = new Set(corsOrigins.map(normalizeOrigin).filter(Boolean));
+
 function isAllowedCorsOrigin(origin) {
   if (!origin) return true;
-  if (corsOrigins.includes(origin)) return true;
-  if (ALLOW_VERCEL_PREVIEWS && /^https:\/\/[-a-z0-9]+\.vercel\.app$/i.test(origin)) return true;
+  const normalized = normalizeOrigin(origin);
+  if (allowedCorsOrigins.has(normalized)) return true;
+  if (NODE_ENV !== 'production' && isLocalDevOrigin(normalized)) return true;
+  if (ALLOW_VERCEL_PREVIEWS && /^https:\/\/[-a-z0-9]+\.vercel\.app$/i.test(normalized)) return true;
   return false;
 }
 
@@ -55,7 +87,7 @@ app.use(cors({
     if (isAllowedCorsOrigin(origin)) {
       return callback(null, true);
     }
-    return callback(new Error('CORS origin not allowed'));
+    return callback(new Error(`CORS origin not allowed: ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
