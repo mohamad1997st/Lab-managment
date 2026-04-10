@@ -4,5 +4,10 @@
   "installCommand": "npm ci --prefix lab-frontend",
   "buildCommand": "npm run build --prefix lab-frontend",
   "outputDirectory": "lab-frontend/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/((?!api(?:/|$)).*)",
+      "destination": "/index.html"
+    }
+  ]
 }
