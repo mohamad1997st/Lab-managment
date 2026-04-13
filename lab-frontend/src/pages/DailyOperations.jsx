@@ -92,7 +92,7 @@ export default function DailyOperations({ currentUser }) {
         employee_id: Number(form.employee_id),
         inventory_id: Number(form.inventory_id),
         subculture_new_jar:
-          form.phase_of_culture === 'Rooting'
+          (form.phase_of_culture === 'Rooting' || form.phase_of_culture === 'Acclimatization')
             ? null
             : (form.subculture_new_jar === '' ? null : Number(form.subculture_new_jar))
       });
@@ -179,12 +179,20 @@ export default function DailyOperations({ currentUser }) {
                 select
                 label="Phase"
                 value={form.phase_of_culture}
-                onChange={(e) => setForm({ ...form, phase_of_culture: e.target.value })}
+                onChange={(e) => {
+                  const phase = e.target.value;
+                  setForm({
+                    ...form,
+                    phase_of_culture: phase,
+                    subculture_new_jar: (phase === 'Rooting' || phase === 'Acclimatization') ? '' : form.subculture_new_jar
+                  });
+                }}
                 fullWidth
               >
                 <MenuItem value="Multiplication">Multiplication</MenuItem>
                 <MenuItem value="Rooting">Rooting</MenuItem>
                 <MenuItem value="Initiation">Initiation</MenuItem>
+                <MenuItem value="Acclimatization">Acclimatization</MenuItem>
               </TextField>
 
               <TextField
@@ -240,7 +248,7 @@ export default function DailyOperations({ currentUser }) {
                 fullWidth
               />
 
-              {form.phase_of_culture !== 'Rooting' && (
+              {form.phase_of_culture !== 'Rooting' && form.phase_of_culture !== 'Acclimatization' && (
                 <TextField
                   label="New subculture"
                   type="number"

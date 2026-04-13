@@ -21,8 +21,10 @@ SET row_security = off;
 --
 
 CREATE TYPE public.culture_phase AS ENUM (
+    'Initiation',
     'Multiplication',
     'Rooting',
+    'Acclimatization',
     'Other'
 );
 
@@ -71,8 +73,8 @@ BEGIN
     RAISE EXCEPTION 'Operation % not found', COALESCE(NEW.operation_id, OLD.operation_id);
   END IF;
 
-  -- Rooting does not affect inventory
-  IF v_op.phase_of_culture = 'Rooting' THEN
+  -- Terminal phases (no target subculture inventory to adjust)
+  IF v_op.phase_of_culture IN ('Rooting', 'Acclimatization') THEN
     RETURN COALESCE(NEW, OLD);
   END IF;
 
@@ -205,8 +207,8 @@ BEGIN
   SET number_mother_jar = number_mother_jar - NEW.used_mother_jars
   WHERE id = NEW.inventory_id;
 
-  -- Rooting: ignore creating subculture / adding new jars to inventory
-  IF NEW.phase_of_culture = 'Rooting' THEN
+  -- Terminal phases: ignore creating subculture / adding new jars to inventory
+  IF NEW.phase_of_culture IN ('Rooting', 'Acclimatization') THEN
     NEW.subculture_new_jar := NULL;
     RETURN NEW;
   END IF;

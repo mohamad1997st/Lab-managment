@@ -60,7 +60,7 @@ export default function OperationForm() {
       number_new_jars: Number(form.number_new_jars),
       phase_of_culture: form.phase_of_culture,
       subculture_new_jar:
-        form.phase_of_culture === 'Rooting'
+        (form.phase_of_culture === 'Rooting' || form.phase_of_culture === 'Acclimatization')
           ? null
           : Number(form.subculture_new_jar)
     };
@@ -100,7 +100,7 @@ const _toArabicError = (msg) => {
     form.inventory_id &&
     form.used_mother_jars !== '' &&
     form.number_new_jars !== '' &&
-    (form.phase_of_culture === 'Rooting' || form.subculture_new_jar !== '');
+    ((form.phase_of_culture === 'Rooting' || form.phase_of_culture === 'Acclimatization') || form.subculture_new_jar !== '');
 
   return (
     <Paper sx={{ p: 3, maxWidth: 800, mx: 'auto' }}>
@@ -130,7 +130,7 @@ const _toArabicError = (msg) => {
             setForm({
               ...form,
               phase_of_culture: phase,
-              subculture_new_jar: phase === 'Rooting' ? '' : form.subculture_new_jar
+              subculture_new_jar: (phase === 'Rooting' || phase === 'Acclimatization') ? '' : form.subculture_new_jar
             });
           }}
           fullWidth
@@ -138,6 +138,7 @@ const _toArabicError = (msg) => {
           <MenuItem value="Initiation">Initiation</MenuItem>
           <MenuItem value="Multiplication">Multiplication</MenuItem>
           <MenuItem value="Rooting">Rooting</MenuItem>
+          <MenuItem value="Acclimatization">Acclimatization</MenuItem>
         </TextField>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -200,7 +201,7 @@ const _toArabicError = (msg) => {
           />
 
           {/* ✅ يظهر فقط إذا ليست Rooting */}
-          {form.phase_of_culture !== 'Rooting' && (
+          {form.phase_of_culture !== 'Rooting' && form.phase_of_culture !== 'Acclimatization' && (
             <TextField
               label="New subculture"
               type="number"

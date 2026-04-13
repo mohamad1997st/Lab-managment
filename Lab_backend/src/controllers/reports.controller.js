@@ -375,7 +375,7 @@ exports.productionBySpeciesPdf = async (req, res) => {
 
   // افتراضياً نستثني Rooting (إذا بدك تضمّنه: include_rooting=true)
   if (include_rooting !== 'true') {
-    where += ` AND (d.phase_of_culture IS NULL OR d.phase_of_culture <> 'Rooting')`;
+    where += ` AND (d.phase_of_culture IS NULL OR d.phase_of_culture NOT IN ('Rooting','Acclimatization'))`;
   }
 
   // إعداد PDF
@@ -1326,7 +1326,7 @@ exports.inventoryOpsDetailGroupedPdf = async (req, res) => {
     }
 
     if (include_rooting === 'false') {
-      where += ` AND (d.phase_of_culture IS NULL OR d.phase_of_culture <> 'Rooting')`;
+      where += ` AND (d.phase_of_culture IS NULL OR d.phase_of_culture NOT IN ('Rooting','Acclimatization'))`;
     }
 
     const details = await pool.query(
@@ -1537,7 +1537,7 @@ exports.inventoryOpsDetailGroupedPdf = async (req, res) => {
     };
 
     for (const r of rows) {
-      const produced = (r.phase_of_culture === 'Rooting') ? 0 : (Number(r.number_new_jars) || 0);
+      const produced = (r.phase_of_culture === 'Rooting' || r.phase_of_culture === 'Acclimatization') ? 0 : (Number(r.number_new_jars) || 0);
       const used = Number(r.used_mother_jars) || 0;
 
       // ---- Species change
@@ -1595,7 +1595,7 @@ exports.inventoryOpsDetailGroupedPdf = async (req, res) => {
         r.full_name || '-',
         used,
         produced,
-        (r.phase_of_culture === 'Rooting') ? '-' : (r.subculture_new_jar ?? '-')
+        (r.phase_of_culture === 'Rooting' || r.phase_of_culture === 'Acclimatization') ? '-' : (r.subculture_new_jar ?? '-')
       ];
 
       const neededH = rowHeightFor(values);

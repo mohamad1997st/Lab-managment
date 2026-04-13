@@ -164,7 +164,8 @@ exports.create = async (req, res) => {
   }
 
   // ✅ إذا Rooting تجاهل subculture_new_jar
-  const subcultureValue = (phase === 'Rooting') ? null : subculture_new_jar;
+  const isTerminalPhase = phase === 'Rooting' || phase === 'Acclimatization';
+  const subcultureValue = isTerminalPhase ? null : subculture_new_jar;
 
   const { rows } = await pool.query(
     `
