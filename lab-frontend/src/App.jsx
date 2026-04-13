@@ -202,11 +202,12 @@ function AppShell() {
 
     const checkAuth = async () => {
       try {
-        const res = await api.get('/auth/me');
+        const res = await api.get('/auth/session');
         if (active) {
-          setIsAuthenticated(true);
-          setCurrentUser(res.data?.user || null);
-          setCurrentLab(res.data?.lab || null);
+          const authenticated = Boolean(res.data?.authenticated);
+          setIsAuthenticated(authenticated);
+          setCurrentUser(authenticated ? (res.data?.user || null) : null);
+          setCurrentLab(authenticated ? (res.data?.lab || null) : null);
         }
       } catch {
         if (active) {
@@ -237,10 +238,11 @@ function AppShell() {
 
   const handleLoginSuccess = async () => {
     try {
-      const res = await api.get('/auth/me');
-      setIsAuthenticated(true);
-      setCurrentUser(res.data?.user || null);
-      setCurrentLab(res.data?.lab || null);
+      const res = await api.get('/auth/session');
+      const authenticated = Boolean(res.data?.authenticated);
+      setIsAuthenticated(authenticated);
+      setCurrentUser(authenticated ? (res.data?.user || null) : null);
+      setCurrentLab(authenticated ? (res.data?.lab || null) : null);
     } catch {
       setIsAuthenticated(false);
       setCurrentUser(null);

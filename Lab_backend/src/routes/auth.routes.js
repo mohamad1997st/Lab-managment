@@ -3,6 +3,7 @@ const auth = require('../controllers/auth.controller');
 const { requireAuth } = require('../middleware/auth.middleware');
 
 router.get('/status', auth.status);
+router.get('/session', auth.session);
 router.get('/google/start', auth.googleStart);
 router.get('/google/callback', auth.googleCallback);
 router.post('/setup', auth.setupAdmin);

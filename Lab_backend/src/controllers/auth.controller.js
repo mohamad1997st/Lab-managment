@@ -169,6 +169,31 @@ exports.status = async (_req, res) => {
   });
 };
 
+exports.session = async (req, res) => {
+  const token = req.cookies?.token;
+
+  if (!token) {
+    return res.json({ authenticated: false, user: null, lab: null });
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_ACCESS_SECRET);
+    const authPayload = await loadAuthPayloadByUserId(payload.id);
+
+    if (!authPayload) {
+      return res.json({ authenticated: false, user: null, lab: null });
+    }
+
+    return res.json({
+      authenticated: true,
+      user: authPayload.user,
+      lab: authPayload.lab
+    });
+  } catch {
+    return res.json({ authenticated: false, user: null, lab: null });
+  }
+};
+
 exports.setupAdmin = async (req, res) => {
   const lab_name = normalizeText(req.body?.lab_name);
   const full_name = normalizeText(req.body?.full_name);
