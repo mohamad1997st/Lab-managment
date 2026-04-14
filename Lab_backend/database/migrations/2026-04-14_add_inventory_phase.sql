@@ -1,8 +1,18 @@
--- Fix inventory upserts after introducing mandatory lab ownership.
---
--- The daily operations trigger creates or updates the next subculture inventory row.
--- After `inventory.lab_id` became NOT NULL, the trigger must carry the mother row's
--- lab_id forward and conflict on the lab-scoped uniqueness key.
+-- Step 1 of phase-aware inventory.
+-- Existing inventory rows are treated as Multiplication stock.
+
+ALTER TABLE public.inventory
+  ADD COLUMN IF NOT EXISTS phase_of_culture public.culture_phase;
+
+UPDATE public.inventory
+SET phase_of_culture = 'Multiplication'
+WHERE phase_of_culture IS NULL;
+
+ALTER TABLE public.inventory
+  ALTER COLUMN phase_of_culture SET DEFAULT 'Multiplication';
+
+ALTER TABLE public.inventory
+  ALTER COLUMN phase_of_culture SET NOT NULL;
 
 DO $$
 BEGIN

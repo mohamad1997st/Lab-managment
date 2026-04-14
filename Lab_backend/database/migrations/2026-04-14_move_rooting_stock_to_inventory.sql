@@ -1,25 +1,5 @@
--- Fix inventory upserts after introducing mandatory lab ownership.
---
--- The daily operations trigger creates or updates the next subculture inventory row.
--- After `inventory.lab_id` became NOT NULL, the trigger must carry the mother row's
--- lab_id forward and conflict on the lab-scoped uniqueness key.
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'uq_inventory_species_subculture'
-      AND conrelid = 'public.inventory'::regclass
-  ) THEN
-    ALTER TABLE public.inventory
-      DROP CONSTRAINT uq_inventory_species_subculture;
-  END IF;
-END $$;
-
-ALTER TABLE public.inventory
-  ADD CONSTRAINT uq_inventory_species_subculture
-  UNIQUE (lab_id, species_id, phase_of_culture, subculture_mother_jars);
+-- Step 2 of phase-aware inventory.
+-- Rooting operations should move produced jars into Rooting inventory automatically.
 
 CREATE OR REPLACE FUNCTION public.update_inventory_after_operation() RETURNS trigger
     LANGUAGE plpgsql
@@ -50,8 +30,20 @@ BEGIN
   SET number_mother_jar = number_mother_jar - NEW.used_mother_jars
   WHERE id = NEW.inventory_id;
 
-  IF NEW.phase_of_culture IN ('Rooting', 'Acclimatization') THEN
+  IF NEW.phase_of_culture = 'Acclimatization' THEN
     NEW.subculture_new_jar := NULL;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.phase_of_culture = 'Rooting' THEN
+    NEW.subculture_new_jar := NULL;
+
+    INSERT INTO inventory (lab_id, species_id, phase_of_culture, subculture_mother_jars, number_mother_jar)
+    VALUES (v_lab_id, v_species_id, 'Rooting', 0, NEW.number_new_jars)
+    ON CONFLICT (lab_id, species_id, phase_of_culture, subculture_mother_jars)
+    DO UPDATE
+    SET number_mother_jar = inventory.number_mother_jar + EXCLUDED.number_mother_jar;
+
     RETURN NEW;
   END IF;
 
@@ -81,6 +73,7 @@ DECLARE
   v_op                RECORD;
   v_lab_id            INT;
   v_species_id        INT;
+  v_target_phase      public.culture_phase;
   v_target_sub        INT;
   v_delta             INT;
   v_target_stock      INT;
@@ -113,16 +106,23 @@ BEGIN
     RAISE EXCEPTION 'Operation % not found', COALESCE(NEW.operation_id, OLD.operation_id);
   END IF;
 
-  IF v_op.phase_of_culture IN ('Rooting', 'Acclimatization') THEN
+  IF v_op.phase_of_culture = 'Acclimatization' THEN
     RETURN COALESCE(NEW, OLD);
   END IF;
 
   v_lab_id := v_op.lab_id;
   v_species_id := v_op.species_id;
-  v_target_sub := v_op.subculture_new_jar;
 
-  IF v_target_sub IS NULL THEN
-    RAISE EXCEPTION 'subculture_new_jar is NULL for non-rooting operation %', v_op.id;
+  IF v_op.phase_of_culture = 'Rooting' THEN
+    v_target_phase := 'Rooting';
+    v_target_sub := 0;
+  ELSE
+    v_target_phase := 'Multiplication';
+    v_target_sub := v_op.subculture_new_jar;
+
+    IF v_target_sub IS NULL THEN
+      RAISE EXCEPTION 'subculture_new_jar is NULL for non-rooting operation %', v_op.id;
+    END IF;
   END IF;
 
   IF TG_OP IN ('INSERT','UPDATE') THEN
@@ -137,13 +137,13 @@ BEGIN
   FROM inventory
   WHERE lab_id = v_lab_id
     AND species_id = v_species_id
-    AND phase_of_culture = 'Multiplication'
+    AND phase_of_culture = v_target_phase
     AND subculture_mother_jars = v_target_sub
   FOR UPDATE;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Target inventory not found for species_id % subculture % (operation %)',
-      v_species_id, v_target_sub, v_op.id;
+    RAISE EXCEPTION 'Target inventory not found for species_id %, phase %, subculture % (operation %)',
+      v_species_id, v_target_phase, v_target_sub, v_op.id;
   END IF;
 
   IF (v_target_stock - v_delta) < 0 THEN
@@ -154,7 +154,7 @@ BEGIN
   SET number_mother_jar = number_mother_jar - v_delta
   WHERE lab_id = v_lab_id
     AND species_id = v_species_id
-    AND phase_of_culture = 'Multiplication'
+    AND phase_of_culture = v_target_phase
     AND subculture_mother_jars = v_target_sub;
 
   RETURN COALESCE(NEW, OLD);

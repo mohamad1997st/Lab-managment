@@ -41,6 +41,7 @@ DECLARE
   v_op               RECORD;
   v_lab_id            INT;
   v_species_id        INT;
+  v_target_phase      public.culture_phase;
   v_target_sub        INT;
   v_delta             INT;
   v_target_stock      INT;
@@ -75,18 +76,25 @@ BEGIN
     RAISE EXCEPTION 'Operation % not found', COALESCE(NEW.operation_id, OLD.operation_id);
   END IF;
 
-  -- Terminal phases (no target subculture inventory to adjust)
-  IF v_op.phase_of_culture IN ('Rooting', 'Acclimatization') THEN
+  -- Acclimatization does not create target inventory.
+  IF v_op.phase_of_culture = 'Acclimatization' THEN
     RETURN COALESCE(NEW, OLD);
   END IF;
 
   v_lab_id := v_op.lab_id;
   v_species_id := v_op.species_id;
-  v_target_sub := v_op.subculture_new_jar;
 
-  IF v_target_sub IS NULL THEN
-    -- Should not happen for non-rooting because daily trigger sets it
-    RAISE EXCEPTION 'subculture_new_jar is NULL for non-rooting operation %', v_op.id;
+  IF v_op.phase_of_culture = 'Rooting' THEN
+    v_target_phase := 'Rooting';
+    v_target_sub := 0;
+  ELSE
+    v_target_phase := 'Multiplication';
+    v_target_sub := v_op.subculture_new_jar;
+
+    IF v_target_sub IS NULL THEN
+      -- Should not happen for non-rooting because daily trigger sets it
+      RAISE EXCEPTION 'subculture_new_jar is NULL for non-rooting operation %', v_op.id;
+    END IF;
   END IF;
 
   -- Validate contamination not exceeding produced jars for that operation (on INSERT/UPDATE)
@@ -97,18 +105,19 @@ BEGIN
     END IF;
   END IF;
 
-  -- Lock target inventory row and adjust
+  -- Lock the inventory row created by the operation and adjust it.
   SELECT number_mother_jar
   INTO v_target_stock
   FROM inventory
   WHERE lab_id = v_lab_id
     AND species_id = v_species_id
+    AND phase_of_culture = v_target_phase
     AND subculture_mother_jars = v_target_sub
   FOR UPDATE;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Target inventory not found for species_id % subculture % (operation %)',
-      v_species_id, v_target_sub, v_op.id;
+    RAISE EXCEPTION 'Target inventory not found for species_id %, phase %, subculture % (operation %)',
+      v_species_id, v_target_phase, v_target_sub, v_op.id;
   END IF;
 
   -- Apply delta (subtract if delta positive, add back if negative)
@@ -120,6 +129,7 @@ BEGIN
   SET number_mother_jar = number_mother_jar - v_delta
   WHERE lab_id = v_lab_id
     AND species_id = v_species_id
+    AND phase_of_culture = v_target_phase
     AND subculture_mother_jars = v_target_sub;
 
   RETURN COALESCE(NEW, OLD);
@@ -213,9 +223,22 @@ BEGIN
   SET number_mother_jar = number_mother_jar - NEW.used_mother_jars
   WHERE id = NEW.inventory_id;
 
-  -- Terminal phases: ignore creating subculture / adding new jars to inventory
-  IF NEW.phase_of_culture IN ('Rooting', 'Acclimatization') THEN
+  -- Acclimatization is still terminal in inventory flow.
+  IF NEW.phase_of_culture = 'Acclimatization' THEN
     NEW.subculture_new_jar := NULL;
+    RETURN NEW;
+  END IF;
+
+  -- Rooting operations accumulate into a single Rooting inventory bucket.
+  IF NEW.phase_of_culture = 'Rooting' THEN
+    NEW.subculture_new_jar := NULL;
+
+    INSERT INTO inventory (lab_id, species_id, phase_of_culture, subculture_mother_jars, number_mother_jar)
+    VALUES (v_lab_id, v_species_id, 'Rooting', 0, NEW.number_new_jars)
+    ON CONFLICT (lab_id, species_id, phase_of_culture, subculture_mother_jars)
+    DO UPDATE
+    SET number_mother_jar = inventory.number_mother_jar + EXCLUDED.number_mother_jar;
+
     RETURN NEW;
   END IF;
 
@@ -229,10 +252,10 @@ BEGIN
       v_new_subculture, NEW.subculture_new_jar;
   END IF;
 
-  -- 3) add produced jars to target subculture inventory (upsert)
-  INSERT INTO inventory (lab_id, species_id, subculture_mother_jars, number_mother_jar)
-  VALUES (v_lab_id, v_species_id, v_new_subculture, NEW.number_new_jars)
-  ON CONFLICT (lab_id, species_id, subculture_mother_jars)
+  -- 3) add produced jars to multiplication inventory (upsert)
+  INSERT INTO inventory (lab_id, species_id, phase_of_culture, subculture_mother_jars, number_mother_jar)
+  VALUES (v_lab_id, v_species_id, 'Multiplication', v_new_subculture, NEW.number_new_jars)
+  ON CONFLICT (lab_id, species_id, phase_of_culture, subculture_mother_jars)
   DO UPDATE
   SET number_mother_jar = inventory.number_mother_jar + EXCLUDED.number_mother_jar;
 
@@ -373,6 +396,7 @@ ALTER SEQUENCE public.employees_id_seq OWNED BY public.employees.id;
 CREATE TABLE public.inventory (
     id integer NOT NULL,
     species_id integer NOT NULL,
+    phase_of_culture public.culture_phase DEFAULT 'Multiplication'::public.culture_phase NOT NULL,
     subculture_mother_jars integer NOT NULL,
     number_mother_jar integer NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
@@ -981,7 +1005,7 @@ ALTER TABLE ONLY public.contamination_records
 --
 
 ALTER TABLE ONLY public.inventory
-    ADD CONSTRAINT uq_inventory_species_subculture UNIQUE (lab_id, species_id, subculture_mother_jars);
+    ADD CONSTRAINT uq_inventory_species_subculture UNIQUE (lab_id, species_id, phase_of_culture, subculture_mother_jars);
 
 
 --
