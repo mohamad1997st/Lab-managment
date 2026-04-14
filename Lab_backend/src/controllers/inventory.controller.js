@@ -8,6 +8,13 @@ const ALLOWED_PHASES = new Set([
   'Other'
 ]);
 
+const ZERO_SUBCULTURE_PHASES = new Set([
+  'Initiation',
+  'Rooting',
+  'Acclimatization',
+  'Other'
+]);
+
 exports.getAllInventory = async (req, res) => {
   try {
     const phase = req.query?.phase;
@@ -60,19 +67,38 @@ exports.createInventory = async (req, res) => {
 
     const spId = Number(species_id);
     const jars = Number(number_mother_jar);
-    const subRaw = subculture_mother_jars === undefined || subculture_mother_jars === null || subculture_mother_jars === ''
-      ? (phase === 'Multiplication' ? undefined : 0)
-      : subculture_mother_jars;
-    const sub = Number(subRaw);
+    const hasExplicitSubculture = !(
+      subculture_mother_jars === undefined ||
+      subculture_mother_jars === null ||
+      subculture_mother_jars === ''
+    );
 
-    if (phase === 'Multiplication' && subculture_mother_jars === undefined) {
+    if (phase === 'Multiplication' && !hasExplicitSubculture) {
       return res.status(400).json({ error: 'subculture_mother_jars is required for Multiplication inventory' });
     }
+
+    let sub = 0;
+    if (phase === 'Multiplication') {
+      sub = Number(subculture_mother_jars);
+    } else if (hasExplicitSubculture) {
+      sub = Number(subculture_mother_jars);
+      if (sub !== 0) {
+        return res.status(400).json({
+          error: `subculture_mother_jars must be 0 or blank for ${phase} inventory`
+        });
+      }
+    }
+
     if (!Number.isFinite(spId) || !Number.isFinite(sub) || !Number.isFinite(jars)) {
       return res.status(400).json({ error: 'Invalid numbers' });
     }
     if (sub < 0 || jars < 0) {
       return res.status(400).json({ error: 'Values cannot be negative' });
+    }
+    if (ZERO_SUBCULTURE_PHASES.has(phase) && sub !== 0) {
+      return res.status(400).json({
+        error: `subculture_mother_jars must be 0 for ${phase} inventory`
+      });
     }
 
     const speciesRes = await pool.query(

@@ -17,6 +17,24 @@ import { downloadPdf } from '../utils/pdfDownload';
 import { getFriendlyApiError, hasSubscriptionResolution } from '../utils/subscriptionErrors';
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const allowedTargetsBySourcePhase = {
+  Initiation: ['Multiplication'],
+  Multiplication: ['Multiplication', 'Rooting'],
+  Rooting: ['Acclimatization']
+};
+
+const emptyForm = {
+  operations_date: '',
+  employee_id: '',
+  inventory_id: '',
+  used_mother_jars: '',
+  number_new_jars: '',
+  subculture_new_jar: '',
+  phase_of_culture: 'Multiplication',
+  number_of_shootlets: '',
+  number_of_cultured_trays: '',
+  number_of_rooted_shoots: ''
+};
 
 export default function DailyOperations({ currentUser }) {
   const isStaff = currentUser?.role === 'staff';
@@ -30,15 +48,7 @@ export default function DailyOperations({ currentUser }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showSubscriptionAction, setShowSubscriptionAction] = useState(false);
-  const [form, setForm] = useState({
-    operations_date: '',
-    employee_id: '',
-    inventory_id: '',
-    used_mother_jars: '',
-    number_new_jars: '',
-    subculture_new_jar: '',
-    phase_of_culture: 'Multiplication'
-  });
+  const [form, setForm] = useState(emptyForm);
   const [filters, setFilters] = useState({
     month: '',
     employee_id: '',
@@ -46,8 +56,21 @@ export default function DailyOperations({ currentUser }) {
     phase: ''
   });
 
+  const isAcclimatization = form.phase_of_culture === 'Acclimatization';
   const selectedInventory = asArray(inventory).find((i) => String(i.id) === String(form.inventory_id));
   const availableMotherJars = selectedInventory ? Number(selectedInventory.number_mother_jar ?? 0) : null;
+  const eligibleInventory = asArray(inventory).filter((row) => {
+    const allowedTargets = allowedTargetsBySourcePhase[row.phase_of_culture];
+    return Array.isArray(allowedTargets) && allowedTargets.includes(form.phase_of_culture);
+  });
+
+  const computedRootingPercentage =
+    isAcclimatization &&
+    form.number_of_shootlets !== '' &&
+    Number(form.number_of_shootlets) > 0 &&
+    form.number_of_rooted_shoots !== ''
+      ? ((Number(form.number_of_rooted_shoots) / Number(form.number_of_shootlets)) * 100).toFixed(2)
+      : '0.00';
 
   useEffect(() => {
     if (!isStaff) {
@@ -88,9 +111,13 @@ export default function DailyOperations({ currentUser }) {
       await api.post('/daily-operations', {
         ...form,
         used_mother_jars: Number(form.used_mother_jars),
-        number_new_jars: Number(form.number_new_jars),
+        number_new_jars: isAcclimatization ? Number(form.used_mother_jars) : Number(form.number_new_jars),
         employee_id: Number(form.employee_id),
         inventory_id: Number(form.inventory_id),
+        number_of_shootlets: isAcclimatization ? Number(form.number_of_shootlets) : null,
+        number_of_cultured_trays: isAcclimatization ? Number(form.number_of_cultured_trays) : null,
+        number_of_rooted_shoots: isAcclimatization ? Number(form.number_of_rooted_shoots) : null,
+        rooting_shoot_percentage: isAcclimatization ? Number(computedRootingPercentage) : null,
         subculture_new_jar:
           (form.phase_of_culture === 'Rooting' || form.phase_of_culture === 'Acclimatization')
             ? null
@@ -107,15 +134,7 @@ export default function DailyOperations({ currentUser }) {
   };
 
   const resetForm = () => {
-    setForm({
-      operations_date: '',
-      employee_id: '',
-      inventory_id: '',
-      used_mother_jars: '',
-      number_new_jars: '',
-      subculture_new_jar: '',
-      phase_of_culture: 'Multiplication'
-    });
+    setForm(emptyForm);
   };
 
   const resetFilters = () => {
@@ -142,7 +161,7 @@ export default function DailyOperations({ currentUser }) {
   };
 
   return (
-    <Stack spacing={2} sx={{ maxWidth: 1100, mx: 'auto', mt: 3, px: 2 }}>
+    <Stack spacing={2} sx={{ maxWidth: 1150, mx: 'auto', mt: 3, px: 2 }}>
       <Paper sx={{ p: 3 }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
           <AssignmentIcon sx={{ color: '#166534' }} />
@@ -182,16 +201,16 @@ export default function DailyOperations({ currentUser }) {
                 onChange={(e) => {
                   const phase = e.target.value;
                   setForm({
-                    ...form,
-                    phase_of_culture: phase,
-                    subculture_new_jar: (phase === 'Rooting' || phase === 'Acclimatization') ? '' : form.subculture_new_jar
+                    ...emptyForm,
+                    operations_date: form.operations_date,
+                    employee_id: form.employee_id,
+                    phase_of_culture: phase
                   });
                 }}
                 fullWidth
               >
                 <MenuItem value="Multiplication">Multiplication</MenuItem>
                 <MenuItem value="Rooting">Rooting</MenuItem>
-                <MenuItem value="Initiation">Initiation</MenuItem>
                 <MenuItem value="Acclimatization">Acclimatization</MenuItem>
               </TextField>
 
@@ -211,54 +230,104 @@ export default function DailyOperations({ currentUser }) {
 
             <TextField
               select
-              label="Inventory (Species / Subculture)"
+              label={isAcclimatization ? 'Inventory From Rooted Jar Species' : 'Inventory (Species / Subculture)'}
               value={form.inventory_id}
               onChange={(e) => setForm({ ...form, inventory_id: e.target.value })}
               fullWidth
               helperText={
                 selectedInventory
-                  ? `Available mother jars in this inventory: ${availableMotherJars}`
-                  : 'Select an inventory to see available mother jars'
+                  ? `Available mother jars: ${availableMotherJars}. Source phase: ${selectedInventory.phase_of_culture}.`
+                  : 'Select a source inventory compatible with the target phase'
               }
             >
               <MenuItem value=""><em>Select</em></MenuItem>
-              {asArray(inventory).map((i) => (
+              {eligibleInventory.map((i) => (
                 <MenuItem key={i.id} value={i.id}>
-                  {i.species_name} - Sub {i.subculture_mother_jars} - Mother jars: {i.number_mother_jar} (ID {i.id})
+                  {i.species_name} - {i.phase_of_culture} - Sub {i.subculture_mother_jars} - Mother jars: {i.number_mother_jar} (ID {i.id})
                 </MenuItem>
               ))}
             </TextField>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
-                label="Used mother jars"
+                label={isAcclimatization ? 'Number of Jars' : 'Used mother jars'}
                 type="number"
                 inputProps={{ min: 0 }}
                 value={form.used_mother_jars}
-                onChange={(e) => setForm({ ...form, used_mother_jars: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setForm({
+                    ...form,
+                    used_mother_jars: value,
+                    number_new_jars: isAcclimatization ? value : form.number_new_jars
+                  });
+                }}
                 fullWidth
               />
 
-              <TextField
-                label="New jars"
-                type="number"
-                inputProps={{ min: 0 }}
-                value={form.number_new_jars}
-                onChange={(e) => setForm({ ...form, number_new_jars: e.target.value })}
-                fullWidth
-              />
+              {!isAcclimatization && (
+                <TextField
+                  label="New jars"
+                  type="number"
+                  inputProps={{ min: 0 }}
+                  value={form.number_new_jars}
+                  onChange={(e) => setForm({ ...form, number_new_jars: e.target.value })}
+                  fullWidth
+                />
+              )}
 
-              {form.phase_of_culture !== 'Rooting' && form.phase_of_culture !== 'Acclimatization' && (
+              {form.phase_of_culture === 'Multiplication' && (
                 <TextField
                   label="New subculture"
                   type="number"
                   inputProps={{ min: 0 }}
                   value={form.subculture_new_jar}
                   onChange={(e) => setForm({ ...form, subculture_new_jar: e.target.value })}
+                  helperText={selectedInventory ? 'Leave blank to auto-use the next multiplication subculture.' : ''}
                   fullWidth
                 />
               )}
             </Stack>
+
+            {isAcclimatization && (
+              <>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <TextField
+                    label="Number of Shootlets"
+                    type="number"
+                    inputProps={{ min: 0 }}
+                    value={form.number_of_shootlets}
+                    onChange={(e) => setForm({ ...form, number_of_shootlets: e.target.value })}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Number of Cultured Trays"
+                    type="number"
+                    inputProps={{ min: 0 }}
+                    value={form.number_of_cultured_trays}
+                    onChange={(e) => setForm({ ...form, number_of_cultured_trays: e.target.value })}
+                    fullWidth
+                  />
+                </Stack>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <TextField
+                    label="Number of Rooted Shoots"
+                    type="number"
+                    inputProps={{ min: 0 }}
+                    value={form.number_of_rooted_shoots}
+                    onChange={(e) => setForm({ ...form, number_of_rooted_shoots: e.target.value })}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Percentage of Rooting Shoots"
+                    value={`${computedRootingPercentage}%`}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
+                </Stack>
+              </>
+            )}
 
             <Stack direction="row" spacing={2} justifyContent="flexend">
               <Button variant="outlined" onClick={resetForm} startIcon={<RestartAltIcon />}>Reset</Button>
@@ -270,7 +339,12 @@ export default function DailyOperations({ currentUser }) {
                   !form.employee_id ||
                   !form.inventory_id ||
                   form.used_mother_jars === '' ||
-                  form.number_new_jars === ''
+                  (!isAcclimatization && form.number_new_jars === '') ||
+                  (isAcclimatization && (
+                    form.number_of_shootlets === '' ||
+                    form.number_of_cultured_trays === '' ||
+                    form.number_of_rooted_shoots === ''
+                  ))
                 }
                 startIcon={<SaveIcon />}
               >
@@ -377,43 +451,49 @@ export default function DailyOperations({ currentUser }) {
 
         <TableContainer sx={{ overflowX: 'auto' }}>
           <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Date</TableCell>
-              <TableCell>Employee</TableCell>
-              <TableCell>Species</TableCell>
-              <TableCell>Mother Sub</TableCell>
-              <TableCell>Phase</TableCell>
-              <TableCell align="left">Used</TableCell>
-              <TableCell align="left">New</TableCell>
-              <TableCell align="left">New Sub</TableCell>
-            </TableRow>
-          </TableHead>
-
-          <TableBody>
-            {asArray(ops).length === 0 ? (
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={9} sx={{ opacity: 0.7 }}>
-                  No operations found
-                </TableCell>
+                <TableCell>ID</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>Employee</TableCell>
+                <TableCell>Species</TableCell>
+                <TableCell>Mother Sub</TableCell>
+                <TableCell>Phase</TableCell>
+                <TableCell align="left">Used</TableCell>
+                <TableCell align="left">New</TableCell>
+                <TableCell align="left">New Sub</TableCell>
+                <TableCell align="left">Acclim Details</TableCell>
               </TableRow>
-            ) : (
-              asArray(ops).map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.id}</TableCell>
-                  <TableCell>{String(row.operations_date).slice(0, 10)}</TableCell>
-                  <TableCell>{row.full_name}</TableCell>
-                  <TableCell>{row.species_name}</TableCell>
-                  <TableCell>{row.subculture_mother_jars}</TableCell>
-                  <TableCell>{row.phase_of_culture}</TableCell>
-                  <TableCell align="left">{row.used_mother_jars}</TableCell>
-                  <TableCell align="left">{row.number_new_jars}</TableCell>
-                  <TableCell align="left">{row.subculture_new_jar ?? ''}</TableCell>
+            </TableHead>
+
+            <TableBody>
+              {asArray(ops).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} sx={{ opacity: 0.7 }}>
+                    No operations found
+                  </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
+              ) : (
+                asArray(ops).map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>{row.id}</TableCell>
+                    <TableCell>{String(row.operations_date).slice(0, 10)}</TableCell>
+                    <TableCell>{row.full_name}</TableCell>
+                    <TableCell>{row.species_name}</TableCell>
+                    <TableCell>{row.subculture_mother_jars}</TableCell>
+                    <TableCell>{row.phase_of_culture}</TableCell>
+                    <TableCell align="left">{row.used_mother_jars}</TableCell>
+                    <TableCell align="left">{row.number_new_jars}</TableCell>
+                    <TableCell align="left">{row.subculture_new_jar ?? ''}</TableCell>
+                    <TableCell align="left">
+                      {row.phase_of_culture === 'Acclimatization'
+                        ? `Shootlets: ${row.number_of_shootlets ?? 0}, Trays: ${row.number_of_cultured_trays ?? 0}, Rooted: ${row.number_of_rooted_shoots ?? 0}, ${row.rooting_shoot_percentage ?? 0}%`
+                        : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
           </Table>
         </TableContainer>
 

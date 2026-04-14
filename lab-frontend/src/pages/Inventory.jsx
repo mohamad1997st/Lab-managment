@@ -241,7 +241,7 @@ export default function Inventory() {
               </Typography>
             </Stack>
             <Typography variant="body2" sx={{ opacity: 0.75, mt: 0.5 }}>
-              Manage stock by species & subculture (Mother jars).
+              Manage stock by species, phase, and subculture.
             </Typography>
           </Box>
 
@@ -497,8 +497,9 @@ export default function Inventory() {
               helperText={
                 addForm.phase_of_culture === "Multiplication"
                   ? "Required for Multiplication inventory."
-                  : "Optional for non-Multiplication inventory. Leave blank to use the default."
+                  : "Fixed to 0 for non-Multiplication inventory."
               }
+              disabled={addForm.phase_of_culture !== "Multiplication"}
               fullWidth
             />
 
