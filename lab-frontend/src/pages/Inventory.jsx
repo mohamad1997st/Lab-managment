@@ -36,12 +36,14 @@ import { downloadPdf } from "../utils/pdfDownload";
 import { getFriendlyApiError, hasSubscriptionResolution } from "../utils/subscriptionErrors";
 
 export default function Inventory() {
+  const phaseOptions = ["Initiation", "Multiplication", "Rooting", "Acclimatization", "Other"];
   const [species, setSpecies] = useState([]);
   const [rows, setRows] = useState([]);
 
   // filters
   const [filters, setFilters] = useState({
     species_id: "",
+    phase: "",
     status: "all", // all | active | empty
     search: "",
   });
@@ -61,6 +63,7 @@ export default function Inventory() {
 
   const [addForm, setAddForm] = useState({
     species_id: "",
+    phase_of_culture: "Multiplication",
     subculture_mother_jars: "",
     number_mother_jar: "",
   });
@@ -86,6 +89,10 @@ export default function Inventory() {
       data = data.filter((r) => Number(r.species_id) === Number(filters.species_id));
     }
 
+    if (filters.phase) {
+      data = data.filter((r) => String(r.phase_of_culture || "") === filters.phase);
+    }
+
     // status filter
     if (filters.status === "active") {
       data = data.filter((r) => Number(r.number_mother_jar) > 0);
@@ -99,8 +106,9 @@ export default function Inventory() {
       data = data.filter((r) => {
         const sp = String(r.species_name || "").toLowerCase();
         const id = String(r.id || "");
+        const phase = String(r.phase_of_culture || "").toLowerCase();
         const sub = String(r.subculture_mother_jars ?? "");
-        return sp.includes(q) || id.includes(q) || sub.includes(q);
+        return sp.includes(q) || id.includes(q) || phase.includes(q) || sub.includes(q);
       });
     }
 
@@ -109,6 +117,9 @@ export default function Inventory() {
       const s1 = String(a.species_name || "");
       const s2 = String(b.species_name || "");
       if (s1 !== s2) return s1.localeCompare(s2);
+      const p1 = String(a.phase_of_culture || "");
+      const p2 = String(b.phase_of_culture || "");
+      if (p1 !== p2) return p1.localeCompare(p2);
       return Number(a.subculture_mother_jars) - Number(b.subculture_mother_jars);
     });
 
@@ -116,13 +127,18 @@ export default function Inventory() {
   }, [rows, filters]);
 
   const resetFilters = () => {
-    setFilters({ species_id: "", status: "all", search: "" });
+    setFilters({ species_id: "", phase: "", status: "all", search: "" });
   };
 
   // --------- add inventory
   const openDialog = () => {
     setErrMsg("");
-    setAddForm({ species_id: "", subculture_mother_jars: "", number_mother_jar: "" });
+    setAddForm({
+      species_id: "",
+      phase_of_culture: "Multiplication",
+      subculture_mother_jars: "",
+      number_mother_jar: "",
+    });
     setOpenAdd(true);
   };
 
@@ -130,7 +146,8 @@ export default function Inventory() {
 
   const canSave =
     addForm.species_id &&
-    addForm.subculture_mother_jars !== "" &&
+    addForm.phase_of_culture &&
+    (addForm.phase_of_culture !== "Multiplication" || addForm.subculture_mother_jars !== "") &&
     addForm.number_mother_jar !== "";
 
   const submitAdd = async () => {
@@ -141,7 +158,11 @@ export default function Inventory() {
 
       await api.post("/inventory", {
         species_id: Number(addForm.species_id),
-        subculture_mother_jars: Number(addForm.subculture_mother_jars),
+        phase_of_culture: addForm.phase_of_culture,
+        subculture_mother_jars:
+          addForm.subculture_mother_jars === ""
+            ? undefined
+            : Number(addForm.subculture_mother_jars),
         number_mother_jar: Number(addForm.number_mother_jar),
       });
 
@@ -267,6 +288,23 @@ export default function Inventory() {
 
           <TextField
             select
+            label="Phase"
+            value={filters.phase}
+            onChange={(e) => setFilters({ ...filters, phase: e.target.value })}
+            fullWidth
+          >
+            <MenuItem value="">
+              <em>All</em>
+            </MenuItem>
+            {phaseOptions.map((phase) => (
+              <MenuItem key={phase} value={phase}>
+                {phase}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
             label="Status"
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
@@ -338,6 +376,7 @@ export default function Inventory() {
             <TableRow>
               <TableCell>ID</TableCell>
               <TableCell>Species</TableCell>
+              <TableCell>Phase</TableCell>
               <TableCell align="left">Subculture</TableCell>
               <TableCell align="left">Mother Jars</TableCell>
               <TableCell>Status</TableCell>
@@ -348,7 +387,7 @@ export default function Inventory() {
           <TableBody>
             {filteredRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} sx={{ opacity: 0.7 }}>
+                <TableCell colSpan={7} sx={{ opacity: 0.7 }}>
                   No inventory found for these filters.
                 </TableCell>
               </TableRow>
@@ -368,6 +407,7 @@ export default function Inventory() {
                   >
                     <TableCell>{r.id}</TableCell>
                     <TableCell>{r.species_name}</TableCell>
+                    <TableCell>{r.phase_of_culture || "-"}</TableCell>
                     <TableCell align="left">{r.subculture_mother_jars}</TableCell>
                     <TableCell align="left">{jars}</TableCell>
                     <TableCell>
@@ -426,12 +466,38 @@ export default function Inventory() {
             </TextField>
 
             <TextField
+              select
+              label="Phase"
+              value={addForm.phase_of_culture}
+              onChange={(e) =>
+                setAddForm({
+                  ...addForm,
+                  phase_of_culture: e.target.value,
+                  subculture_mother_jars:
+                    e.target.value === "Multiplication" ? addForm.subculture_mother_jars : "",
+                })
+              }
+              fullWidth
+            >
+              {phaseOptions.map((phase) => (
+                <MenuItem key={phase} value={phase}>
+                  {phase}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
               label="Mother Subculture (subculture_mother_jars)"
               type="number"
               inputProps={{ min: 0 }}
               value={addForm.subculture_mother_jars}
               onChange={(e) =>
                 setAddForm({ ...addForm, subculture_mother_jars: e.target.value })
+              }
+              helperText={
+                addForm.phase_of_culture === "Multiplication"
+                  ? "Required for Multiplication inventory."
+                  : "Optional for non-Multiplication inventory. Leave blank to use the default."
               }
               fullWidth
             />
