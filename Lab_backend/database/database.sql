@@ -39,6 +39,7 @@ CREATE FUNCTION public.adjust_inventory_on_contamination() RETURNS trigger
     AS $$
 DECLARE
   v_op               RECORD;
+  v_lab_id            INT;
   v_species_id        INT;
   v_target_sub        INT;
   v_delta             INT;
@@ -63,6 +64,7 @@ BEGIN
     d.phase_of_culture,
     d.number_new_jars,
     d.subculture_new_jar,
+    i.lab_id,
     i.species_id
   INTO v_op
   FROM daily_operations d
@@ -78,6 +80,7 @@ BEGIN
     RETURN COALESCE(NEW, OLD);
   END IF;
 
+  v_lab_id := v_op.lab_id;
   v_species_id := v_op.species_id;
   v_target_sub := v_op.subculture_new_jar;
 
@@ -98,7 +101,8 @@ BEGIN
   SELECT number_mother_jar
   INTO v_target_stock
   FROM inventory
-  WHERE species_id = v_species_id
+  WHERE lab_id = v_lab_id
+    AND species_id = v_species_id
     AND subculture_mother_jars = v_target_sub
   FOR UPDATE;
 
@@ -114,7 +118,8 @@ BEGIN
 
   UPDATE inventory
   SET number_mother_jar = number_mother_jar - v_delta
-  WHERE species_id = v_species_id
+  WHERE lab_id = v_lab_id
+    AND species_id = v_species_id
     AND subculture_mother_jars = v_target_sub;
 
   RETURN COALESCE(NEW, OLD);
@@ -181,13 +186,14 @@ CREATE FUNCTION public.update_inventory_after_operation() RETURNS trigger
     AS $$
 DECLARE
   v_species_id          INT;
+  v_lab_id              INT;
   v_mother_subculture   INT;
   v_mother_stock        INT;
   v_new_subculture      INT;
 BEGIN
   -- Lock mother inventory row
-  SELECT species_id, subculture_mother_jars, number_mother_jar
-  INTO v_species_id, v_mother_subculture, v_mother_stock
+  SELECT lab_id, species_id, subculture_mother_jars, number_mother_jar
+  INTO v_lab_id, v_species_id, v_mother_subculture, v_mother_stock
   FROM inventory
   WHERE id = NEW.inventory_id
   FOR UPDATE;
@@ -224,9 +230,9 @@ BEGIN
   END IF;
 
   -- 3) add produced jars to target subculture inventory (upsert)
-  INSERT INTO inventory (species_id, subculture_mother_jars, number_mother_jar)
-  VALUES (v_species_id, v_new_subculture, NEW.number_new_jars)
-  ON CONFLICT (species_id, subculture_mother_jars)
+  INSERT INTO inventory (lab_id, species_id, subculture_mother_jars, number_mother_jar)
+  VALUES (v_lab_id, v_species_id, v_new_subculture, NEW.number_new_jars)
+  ON CONFLICT (lab_id, species_id, subculture_mother_jars)
   DO UPDATE
   SET number_mother_jar = inventory.number_mother_jar + EXCLUDED.number_mother_jar;
 
@@ -975,7 +981,7 @@ ALTER TABLE ONLY public.contamination_records
 --
 
 ALTER TABLE ONLY public.inventory
-    ADD CONSTRAINT uq_inventory_species_subculture UNIQUE (species_id, subculture_mother_jars);
+    ADD CONSTRAINT uq_inventory_species_subculture UNIQUE (lab_id, species_id, subculture_mother_jars);
 
 
 --

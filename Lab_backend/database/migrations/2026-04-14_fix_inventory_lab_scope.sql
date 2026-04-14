@@ -1,14 +1,25 @@
--- Add missing culture phases used by the app UI.
+-- Fix inventory upserts after introducing mandatory lab ownership.
 --
--- Notes:
--- - `ALTER TYPE ... ADD VALUE` may be restricted inside a transaction block on some PostgreSQL versions.
--- - Run these statements directly (not wrapped in BEGIN/COMMIT) if your tooling auto-wraps migrations.
+-- The daily operations trigger creates or updates the next subculture inventory row.
+-- After `inventory.lab_id` became NOT NULL, the trigger must carry the mother row's
+-- lab_id forward and conflict on the lab-scoped uniqueness key.
 
-ALTER TYPE public.culture_phase ADD VALUE IF NOT EXISTS 'Initiation';
-ALTER TYPE public.culture_phase ADD VALUE IF NOT EXISTS 'Acclimatization';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'uq_inventory_species_subculture'
+      AND conrelid = 'public.inventory'::regclass
+  ) THEN
+    ALTER TABLE public.inventory
+      DROP CONSTRAINT uq_inventory_species_subculture;
+  END IF;
+END $$;
 
--- Keep trigger behavior consistent with the UI:
--- - Rooting and Acclimatization are treated as terminal phases (no target subculture inventory updates).
+ALTER TABLE public.inventory
+  ADD CONSTRAINT uq_inventory_species_subculture
+  UNIQUE (lab_id, species_id, subculture_mother_jars);
 
 CREATE OR REPLACE FUNCTION public.update_inventory_after_operation() RETURNS trigger
     LANGUAGE plpgsql
@@ -20,7 +31,6 @@ DECLARE
   v_mother_stock        INT;
   v_new_subculture      INT;
 BEGIN
-  -- Lock mother inventory row
   SELECT lab_id, species_id, subculture_mother_jars, number_mother_jar
   INTO v_lab_id, v_species_id, v_mother_subculture, v_mother_stock
   FROM inventory
@@ -31,24 +41,20 @@ BEGIN
     RAISE EXCEPTION 'inventory_id % not found', NEW.inventory_id;
   END IF;
 
-  -- Validate stock
   IF NEW.used_mother_jars > v_mother_stock THEN
     RAISE EXCEPTION 'Used mother jars (%) exceed available stock (%)',
       NEW.used_mother_jars, v_mother_stock;
   END IF;
 
-  -- 1) subtract from mother inventory (always)
   UPDATE inventory
   SET number_mother_jar = number_mother_jar - NEW.used_mother_jars
   WHERE id = NEW.inventory_id;
 
-  -- Terminal phases: ignore creating subculture / adding new jars to inventory
   IF NEW.phase_of_culture IN ('Rooting', 'Acclimatization') THEN
     NEW.subculture_new_jar := NULL;
     RETURN NEW;
   END IF;
 
-  -- 2) compute & enforce new subculture = mother + 1
   v_new_subculture := v_mother_subculture + 1;
 
   IF NEW.subculture_new_jar IS NULL THEN
@@ -58,7 +64,6 @@ BEGIN
       v_new_subculture, NEW.subculture_new_jar;
   END IF;
 
-  -- 3) add produced jars to target subculture inventory (upsert)
   INSERT INTO inventory (lab_id, species_id, subculture_mother_jars, number_mother_jar)
   VALUES (v_lab_id, v_species_id, v_new_subculture, NEW.number_new_jars)
   ON CONFLICT (lab_id, species_id, subculture_mother_jars)
@@ -73,7 +78,7 @@ CREATE OR REPLACE FUNCTION public.adjust_inventory_on_contamination() RETURNS tr
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  v_op               RECORD;
+  v_op                RECORD;
   v_lab_id            INT;
   v_species_id        INT;
   v_target_sub        INT;
@@ -85,15 +90,13 @@ BEGIN
   ELSIF TG_OP = 'UPDATE' THEN
     v_delta := NEW.contaminated_jars - OLD.contaminated_jars;
   ELSIF TG_OP = 'DELETE' THEN
-    v_delta := - OLD.contaminated_jars; -- add back
+    v_delta := - OLD.contaminated_jars;
   END IF;
 
-  -- If delta = 0, nothing to do
   IF v_delta = 0 THEN
     RETURN COALESCE(NEW, OLD);
   END IF;
 
-  -- Load related operation + mother inventory + species
   SELECT
     d.id,
     d.phase_of_culture,
@@ -110,7 +113,6 @@ BEGIN
     RAISE EXCEPTION 'Operation % not found', COALESCE(NEW.operation_id, OLD.operation_id);
   END IF;
 
-  -- Terminal phases (no target subculture inventory to adjust)
   IF v_op.phase_of_culture IN ('Rooting', 'Acclimatization') THEN
     RETURN COALESCE(NEW, OLD);
   END IF;
@@ -120,11 +122,9 @@ BEGIN
   v_target_sub := v_op.subculture_new_jar;
 
   IF v_target_sub IS NULL THEN
-    -- Should not happen for non-rooting because daily trigger sets it
     RAISE EXCEPTION 'subculture_new_jar is NULL for non-rooting operation %', v_op.id;
   END IF;
 
-  -- Validate contamination not exceeding produced jars for that operation (on INSERT/UPDATE)
   IF TG_OP IN ('INSERT','UPDATE') THEN
     IF NEW.contaminated_jars > v_op.number_new_jars THEN
       RAISE EXCEPTION 'Contaminated jars (%) cannot exceed produced jars (%) for operation %',
@@ -132,7 +132,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- Lock target inventory row and adjust
   SELECT number_mother_jar
   INTO v_target_stock
   FROM inventory
@@ -146,7 +145,6 @@ BEGIN
       v_species_id, v_target_sub, v_op.id;
   END IF;
 
-  -- Apply delta (subtract if delta positive, add back if negative)
   IF (v_target_stock - v_delta) < 0 THEN
     RAISE EXCEPTION 'Inventory would become negative (current %, delta %)', v_target_stock, v_delta;
   END IF;
