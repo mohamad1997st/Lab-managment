@@ -161,7 +161,7 @@ export default function DailyOperations({ currentUser }) {
   };
 
   return (
-    <Stack spacing={2} sx={{ maxWidth: 1150, mx: 'auto', mt: 3, px: 2 }}>
+    <Stack spacing={2} sx={{ maxWidth: 1250, mx: 'auto', mt: 3, px: 2 }}>
       <Paper sx={{ p: 3 }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
           <AssignmentIcon sx={{ color: '#166534' }} />
