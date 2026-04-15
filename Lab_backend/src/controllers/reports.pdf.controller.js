@@ -46,11 +46,11 @@ exports.inventoryPDF = async (req, res) => {
 
     const { rows } = await pool.query(
       `
-      SELECT s.species_name, i.subculture_mother_jars, i.number_mother_jar
+      SELECT s.species_name, i.phase_of_culture, i.subculture_mother_jars, i.number_mother_jar
       FROM inventory i
       JOIN species s ON s.id = i.species_id
       ${where}
-      ORDER BY s.species_name, i.subculture_mother_jars
+      ORDER BY s.species_name, i.phase_of_culture, i.subculture_mother_jars
       `,
       params
     );
@@ -64,16 +64,17 @@ exports.inventoryPDF = async (req, res) => {
 
     const tableRows = rows.map((r) => [
       r.species_name,
+      r.phase_of_culture || '-',
       r.subculture_mother_jars,
       r.number_mother_jar
     ]);
 
     const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    drawTable(doc, ['Species', 'Subculture', 'Jars'], tableRows, {
-      colWidths: [pageW * 0.5, pageW * 0.22, pageW * 0.28],
+    drawTable(doc, ['Species', 'Phase', 'Subculture', 'Jars'], tableRows, {
+      colWidths: [pageW * 0.36, pageW * 0.24, pageW * 0.16, pageW * 0.24],
       rowH: 24,
       rowFill: (cells) => {
-        const jars = Number(cells?.[2] ?? 0);
+        const jars = Number(cells?.[3] ?? 0);
         if (!Number.isFinite(jars)) return null;
         if (jars <= 0) return '#FFCDD2';
         if (jars < 300) return '#FFF9C4';

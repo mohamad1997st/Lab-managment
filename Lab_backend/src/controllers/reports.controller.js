@@ -1080,6 +1080,10 @@ exports.operationsPdf = async (req, res) => {
         d.used_mother_jars,
         d.number_new_jars,
         d.subculture_new_jar,
+        d.number_of_shootlets,
+        d.number_of_cultured_trays,
+        d.number_of_rooted_shoots,
+        d.rooting_shoot_percentage,
         e.full_name,
         s.species_name,
         i.subculture_mother_jars
@@ -1158,29 +1162,40 @@ exports.operationsPdf = async (req, res) => {
 
     const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const startX = doc.page.margins.left;
+    const isAcclimatizationOnly = String(phase || '').trim().toLowerCase() === 'acclimatization';
 
-	    const headerH = 22;
-	    const rowH = 22;
-	    const paddingX = 6;
-	    const paddingY = 5;
+    const headerH = 22;
+    const rowH = 22;
+    const paddingX = 6;
+    const paddingY = 5;
 
-    // ✅ Columns widths (tweak if needed)
-	    const cols = [
-	      pageW * 0.06, // ID
-	      pageW * 0.11, // Date
-	      pageW * 0.10, // Phase
-	      pageW * 0.18, // Employee
-	      pageW * 0.21, // Species (bigger)
-	      pageW * 0.10, // Mother Sub
-	      pageW * 0.08, // Used
-	      pageW * 0.08, // New
-	      pageW * 0.08  // New Sub
-	    ];
-	    // Fix float rounding so columns end exactly at pageW
-	    const colsSum = cols.reduce((a, b) => a + b, 0);
-	    cols[cols.length - 1] += (pageW - colsSum);
+    let cols;
+    let headers;
 
-    const headers = ['ID', 'Date', 'Phase', 'Employee', 'Species', 'Mother Sub', 'Used', 'New', 'New Sub'];
+    if (isAcclimatizationOnly) {
+      cols = [
+        pageW * 0.18, // Date
+        pageW * 0.20, // Number of Culture Jar
+        pageW * 0.62  // Acclim Details
+      ];
+      headers = ['Date', 'Number of Culture Jar', 'Acclim Details'];
+    } else {
+      cols = [
+        pageW * 0.06, // ID
+        pageW * 0.11, // Date
+        pageW * 0.10, // Phase
+        pageW * 0.18, // Employee
+        pageW * 0.21, // Species
+        pageW * 0.10, // Mother Sub
+        pageW * 0.08, // Used
+        pageW * 0.08, // New
+        pageW * 0.08  // New Sub
+      ];
+      headers = ['ID', 'Date', 'Phase', 'Employee', 'Species', 'Mother Sub', 'Used', 'New', 'New Sub'];
+    }
+
+    const colsSum = cols.reduce((a, b) => a + b, 0);
+    cols[cols.length - 1] += (pageW - colsSum);
 
     const bottomY = () => doc.page.height - doc.page.margins.bottom;
 
@@ -1234,16 +1249,19 @@ exports.operationsPdf = async (req, res) => {
 	      for (let i = 0; i < values.length; i++) {
 	        doc.rect(x, y, cols[i], h).stroke();
 	
-	        const align =
-	          i === 0 ? 'right' :
-	          i === 1 ? 'center' :
-	          i === 5 ? 'right' :
-	          i === 6 ? 'right' :
-	          i === 7 ? 'right' :
-	          i === 8 ? 'right' :
-	          'left';
+	        const align = isAcclimatizationOnly
+	          ? (i === 0 ? 'center' : i === 1 ? 'right' : 'left')
+	          : (
+	            i === 0 ? 'right' :
+	            i === 1 ? 'center' :
+	            i === 5 ? 'right' :
+	            i === 6 ? 'right' :
+	            i === 7 ? 'right' :
+	            i === 8 ? 'right' :
+	            'left'
+	          );
 	
-	        if (i === 3) doc.fillColor('#1565C0').font(DOC_BODY_BOLD_FONT).fontSize(9.5);
+	        if (!isAcclimatizationOnly && i === 3) doc.fillColor('#1565C0').font(DOC_BODY_BOLD_FONT).fontSize(9.5);
 	        else doc.fillColor('black').font(DOC_BODY_FONT).fontSize(9.5);
 	
 	        doc.text(String(values[i] ?? ''), x + paddingX, y + paddingY, {
@@ -1265,17 +1283,30 @@ exports.operationsPdf = async (req, res) => {
     doc.y += headerH;
 
     rows.forEach((r, idx) => {
-      const values = [
-        r.id,
-        String(r.operations_date).slice(0, 10),
-        r.phase_of_culture || '-',
-        r.full_name || '-',
-        r.species_name || '-',
-        r.subculture_mother_jars ?? '-',
-        r.used_mother_jars ?? 0,
-        r.number_new_jars ?? 0,
-        r.subculture_new_jar ?? '-'
-      ];
+      const acclimDetails = [
+        `Shootlets: ${r.number_of_shootlets ?? 0}`,
+        `Trays: ${r.number_of_cultured_trays ?? 0}`,
+        `Rooted: ${r.number_of_rooted_shoots ?? 0}`,
+        `%: ${r.rooting_shoot_percentage ?? 0}`
+      ].join('  |  ');
+
+      const values = isAcclimatizationOnly
+        ? [
+            String(r.operations_date).slice(0, 10),
+            r.number_new_jars ?? r.used_mother_jars ?? 0,
+            acclimDetails
+          ]
+        : [
+            r.id,
+            String(r.operations_date).slice(0, 10),
+            r.phase_of_culture || '-',
+            r.full_name || '-',
+            r.species_name || '-',
+            r.subculture_mother_jars ?? '-',
+            r.used_mother_jars ?? 0,
+            r.number_new_jars ?? 0,
+            r.subculture_new_jar ?? '-'
+          ];
 
       if (ensureSpace(rowH + 2)) {
         drawHeader(doc.y);
