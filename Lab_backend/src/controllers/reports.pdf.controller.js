@@ -132,14 +132,26 @@ exports.productionByEmployeePDF = async (req, res) => {
 
     const { rows } = await pool.query(
       `
-      SELECT e.full_name,
+      SELECT
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
              COALESCE(SUM(d.number_new_jars), 0)::int AS total_new_jars
       FROM employees e
       LEFT JOIN daily_operations d
         ON d.employee_id = e.id
       ${where}
-      GROUP BY e.full_name
-      ORDER BY e.full_name
+      GROUP BY
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END
+      ORDER BY
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END
       `,
       params
     );
@@ -177,14 +189,26 @@ exports.contaminationByEmployeePDF = async (req, res) => {
 
     const { rows } = await pool.query(
       `
-      SELECT e.full_name,
+      SELECT
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
              COALESCE(SUM(c.contaminated_jars), 0)::int AS total_contaminated
       FROM employees e
       LEFT JOIN contamination_records c
         ON c.employee_id = e.id
       ${where}
-      GROUP BY e.full_name
-      ORDER BY e.full_name
+      GROUP BY
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END
+      ORDER BY
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END
       `,
       params
     );

@@ -106,7 +106,7 @@ const drawInfoCard = (doc, { x, y, width, title, lines, accent = '#166534' }) =>
   const height = 96;
   doc
     .roundedRect(x, y, width, height, 16)
-    .fillAndStroke('#f8fafc', '#dbe4ee');
+    .fillAndStroke('#f8fafc', 'black');
   doc
     .roundedRect(x, y, 8, height, 16)
     .fill(accent);
@@ -163,7 +163,7 @@ const renderInvoicePdf = (res, record) => {
   doc
     .roundedRect(48, 40, 72, 72, 24)
     .lineWidth(1.2)
-    .stroke('#bbf7d0');
+    .stroke('black');
 
   if (logoPath) {
     doc.image(logoPath, 54, 46, {
@@ -259,7 +259,7 @@ const renderInvoicePdf = (res, record) => {
 
   doc
     .roundedRect(48, sectionY + 18, pageWidth, 188, 18)
-    .fillAndStroke('#ffffff', '#dbe4ee');
+    .fillAndStroke('#ffffff', 'black');
 
   const leftX = 68;
   let rowY = sectionY + 40;
@@ -282,7 +282,7 @@ const renderInvoicePdf = (res, record) => {
   const footerY = sectionY + 260;
   doc
     .roundedRect(48, footerY, pageWidth, 70, 18)
-    .fillAndStroke(softBrand, '#bbf7d0');
+    .fillAndStroke(softBrand, 'black');
   doc
     .font('Helvetica-Bold')
     .fontSize(11)

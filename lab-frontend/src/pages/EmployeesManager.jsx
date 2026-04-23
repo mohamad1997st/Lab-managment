@@ -5,6 +5,7 @@ import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
 import {
   Alert,
   Button,
+  Chip,
   Paper,
   Stack,
   Table,
@@ -24,6 +25,7 @@ export default function EmployeesManager() {
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [updatingId, setUpdatingId] = useState(null);
   const [error, setError] = useState('');
   const [showSubscriptionAction, setShowSubscriptionAction] = useState(false);
 
@@ -31,7 +33,7 @@ export default function EmployeesManager() {
     try {
       setLoading(true);
       setShowSubscriptionAction(false);
-      const res = await api.get('/employees');
+      const res = await api.get('/employees?include_inactive=1');
       setRows(res.data || []);
     } catch (e) {
       setError(e?.response?.data?.error || e.message);
@@ -57,6 +59,19 @@ export default function EmployeesManager() {
       setError(getFriendlyApiError(e, 'add an employee'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const setEmployeeActive = async (id, is_active) => {
+    try {
+      setUpdatingId(id);
+      setError('');
+      await api.patch(`/employees/${id}`, { is_active });
+      await load();
+    } catch (e) {
+      setError(e?.response?.data?.error || e.message);
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -93,18 +108,50 @@ export default function EmployeesManager() {
             <TableRow>
               <TableCell>ID</TableCell>
               <TableCell>Full Name</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {!loading && rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={2}>No employees added yet.</TableCell>
+                <TableCell colSpan={4}>No employees added yet.</TableCell>
               </TableRow>
             ) : (
               rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>{row.id}</TableCell>
                   <TableCell>{row.full_name}</TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      color={row.is_active ? 'success' : 'default'}
+                      variant={row.is_active ? 'filled' : 'outlined'}
+                      label={row.is_active ? 'Active' : 'Left job'}
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    {row.is_active ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="warning"
+                        disabled={updatingId === row.id}
+                        onClick={() => setEmployeeActive(row.id, false)}
+                      >
+                        Mark left
+                      </Button>
+                    ) : (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={updatingId === row.id}
+                        onClick={() => setEmployeeActive(row.id, true)}
+                      >
+                        Re-activate
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}

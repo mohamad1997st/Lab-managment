@@ -93,7 +93,10 @@ exports.getAll = async (req, res) => {
         d.number_of_cultured_trays,
         d.number_of_rooted_shoots,
         d.rooting_shoot_percentage,
-        e.full_name,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
         s.species_name,
         i.subculture_mother_jars
       FROM daily_operations d
@@ -206,7 +209,7 @@ exports.create = async (req, res) => {
     }
 
     const empRes = await pool.query(
-      `SELECT id FROM employees WHERE id = $1 AND lab_id = $2`,
+      `SELECT id FROM employees WHERE id = $1 AND lab_id = $2 AND is_active = true`,
       [Number(employee_id), req.user.lab_id]
     );
 

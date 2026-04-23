@@ -31,15 +31,29 @@ exports.employeePerformance = async (req, res) => {
       SELECT
         to_char(d.operations_date::date, 'YYYY-MM') AS month,
         d.employee_id,
-        e.full_name,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
         COUNT(*)::int AS operations,
         COALESCE(SUM(d.used_mother_jars), 0)::int AS used_mother_jars,
         COALESCE(SUM(d.number_new_jars), 0)::int AS new_jars
       FROM daily_operations d
       JOIN employees e ON e.id = d.employee_id
       ${where}
-      GROUP BY month, d.employee_id, e.full_name
-      ORDER BY month, e.full_name
+      GROUP BY
+        month,
+        d.employee_id,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END
+      ORDER BY
+        month,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END
       `,
       params
     );

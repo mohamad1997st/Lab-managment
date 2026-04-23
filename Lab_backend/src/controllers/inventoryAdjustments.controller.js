@@ -70,7 +70,10 @@ exports.getAll = async (req, res) => {
     SELECT
       a.*,
       to_char(a.adjustment_date, 'YYYY-MM-DD') AS adjustment_date,
-      e.full_name,
+      CASE
+        WHEN e.is_active THEN e.full_name
+        ELSE ('Former employee #' || e.id)
+      END AS full_name,
       s.species_name,
       i.subculture_mother_jars
     FROM inventory_adjustments a
@@ -115,7 +118,7 @@ exports.create = async (req, res) => {
 
   if (employee_id) {
     const employeeRes = await pool.query(
-      `SELECT id FROM employees WHERE id = $1 AND lab_id = $2`,
+      `SELECT id FROM employees WHERE id = $1 AND lab_id = $2 AND is_active = true`,
       [Number(employee_id), req.user.lab_id]
     );
 

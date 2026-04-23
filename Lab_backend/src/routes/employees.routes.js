@@ -11,8 +11,13 @@ router.post(
   '/',
   requireRole(ROLE_OWNER, ROLE_MANAGER),
   requireActiveSubscription(),
-  requireLabQuota('max_employees', 'SELECT COUNT(*)::int AS count FROM employees WHERE lab_id = $1', 'Your current subscription employee limit has been reached.'),
+  requireLabQuota(
+    'max_employees',
+    'SELECT COUNT(*)::int AS count FROM employees WHERE lab_id = $1 AND is_active = true',
+    'Your current subscription employee limit has been reached.'
+  ),
   controller.create
 );
+router.patch('/:id', requireRole(ROLE_OWNER, ROLE_MANAGER), controller.update);
 
 module.exports = router;

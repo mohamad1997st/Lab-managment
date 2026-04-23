@@ -9,7 +9,7 @@ const DOC_TITLE_COLOR = '#111827';
 const DOC_SUBTITLE_COLOR = '#4B5563';
 const DOC_HEADER_FILL = '#F3F4F6';
 const DOC_ZEBRA_FILL = '#FAFAFA';
-const DOC_BORDER_COLOR = '#D1D5DB';
+const DOC_BORDER_COLOR = 'black';
 
 function setupPdf(res, filename) {
   res.setHeader('Content-Type', 'application/pdf');
@@ -252,7 +252,10 @@ exports.productionPdf = async (req, res) => {
       d.id,
       d.operations_date,
       d.phase_of_culture,
-      e.full_name,
+      CASE
+        WHEN e.is_active THEN e.full_name
+        ELSE ('Former employee #' || e.id)
+      END AS full_name,
       s.species_name,
       i.subculture_mother_jars,
       d.used_mother_jars,
@@ -316,7 +319,10 @@ exports.contaminationPdf = async (req, res) => {
       c.id,
       c.detected_date,
       c.contaminated_jars,
-      e.full_name,
+      CASE
+        WHEN e.is_active THEN e.full_name
+        ELSE ('Former employee #' || e.id)
+      END AS full_name,
       d.id as operation_id,
       s.species_name
     FROM contamination_records c
@@ -586,7 +592,10 @@ exports.productionBySpeciesPdf = async (req, res) => {
       d.id,
       d.operations_date,
       d.phase_of_culture,
-      e.full_name,
+      CASE
+        WHEN e.is_active THEN e.full_name
+        ELSE ('Former employee #' || e.id)
+      END AS full_name,
       i.subculture_mother_jars,
       d.used_mother_jars,
       d.number_new_jars,
@@ -1057,7 +1066,15 @@ exports.operationsPdf = async (req, res) => {
 
     if (employee_id) {
       const r = await pool.query(
-        `SELECT full_name FROM employees WHERE id = $1 AND lab_id = $2`,
+        `
+        SELECT
+          CASE
+            WHEN is_active THEN full_name
+            ELSE ('Former employee #' || id)
+          END AS full_name
+        FROM employees
+        WHERE id = $1 AND lab_id = $2
+        `,
         [Number(employee_id), labId]
       );
       employeeName = r.rows[0]?.full_name || `#${employee_id}`;
@@ -1084,7 +1101,10 @@ exports.operationsPdf = async (req, res) => {
         d.number_of_cultured_trays,
         d.number_of_rooted_shoots,
         d.rooting_shoot_percentage,
-        e.full_name,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
         s.species_name,
         i.subculture_mother_jars
       FROM daily_operations d
@@ -1215,21 +1235,25 @@ exports.operationsPdf = async (req, res) => {
 	      doc.rect(startX, y, pageW, headerH).fill();
 	      doc.restore();
 	
+	      // Border (same style as productionBySpeciesPdf)
 	      doc.lineWidth(0.5);
 	      doc.strokeColor(DOC_BORDER_COLOR);
+	      doc.lineCap('square');
+	      doc.lineJoin('miter');
 	      doc.font(DOC_BODY_BOLD_FONT).fontSize(9.5).fillColor(DOC_TITLE_COLOR);
-	
+
+	      doc.rect(startX, y, pageW, headerH).stroke();
 	      let x = startX;
 	      for (let i = 0; i < headers.length; i++) {
-	        doc.rect(x, y, cols[i], headerH).stroke();
+	        if (i > 0) doc.moveTo(x, y).lineTo(x, y + headerH).stroke();
 	        doc.text(headers[i], x + paddingX, y + 6, {
 	          width: cols[i] - paddingX * 2,
-	          align: 'center',
+	          align: 'left',
 	          ellipsis: true
 	        });
 	        x += cols[i];
 	      }
-	
+
 	      doc.font(DOC_BODY_FONT).fillColor('black').strokeColor('black');
 	    };
 
@@ -1242,12 +1266,16 @@ exports.operationsPdf = async (req, res) => {
 	        doc.rect(startX, y, pageW, h).fill();
 	        doc.restore();
 	      }
-	
+
 	      doc.lineWidth(0.5);
 	      doc.strokeColor(DOC_BORDER_COLOR);
+	      doc.lineCap('square');
+	      doc.lineJoin('miter');
+
+	      doc.rect(startX, y, pageW, h).stroke();
 	      let x = startX;
 	      for (let i = 0; i < values.length; i++) {
-	        doc.rect(x, y, cols[i], h).stroke();
+	        if (i > 0) doc.moveTo(x, y).lineTo(x, y + h).stroke();
 	
 	        const align = isAcclimatizationOnly
 	          ? (i === 0 ? 'center' : i === 1 ? 'right' : 'left')
@@ -1370,7 +1398,10 @@ exports.inventoryOpsDetailGroupedPdf = async (req, res) => {
         d.id AS operation_id,
         d.operations_date,
         d.phase_of_culture,
-        e.full_name,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
         d.used_mother_jars,
         d.number_new_jars,
         d.subculture_new_jar
@@ -1668,7 +1699,15 @@ exports.contaminationFilteredPdf = async (req, res) => {
 
     if (employee_id) {
       const r = await pool.query(
-        `SELECT full_name FROM employees WHERE id=$1 AND lab_id = $2`,
+        `
+        SELECT
+          CASE
+            WHEN is_active THEN full_name
+            ELSE ('Former employee #' || id)
+          END AS full_name
+        FROM employees
+        WHERE id=$1 AND lab_id = $2
+        `,
         [Number(employee_id), labId]
       );
       employeeName = r.rows[0]?.full_name || `#${employee_id}`;
@@ -1704,7 +1743,10 @@ exports.contaminationFilteredPdf = async (req, res) => {
       `
       SELECT
         to_char(d.operations_date::date, 'YYYY-MM-DD') AS culture_date,
-        e.full_name,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
         s.species_name,
         d.subculture_new_jar,
         d.number_new_jars AS produced_jars,
@@ -2150,7 +2192,10 @@ exports.inventoryAdjustmentsPdf = async (req, res) => {
         a.type,
         a.qty,
         a.notes,
-        e.full_name,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
         s.species_name,
         i.subculture_mother_jars,
         a.inventory_id

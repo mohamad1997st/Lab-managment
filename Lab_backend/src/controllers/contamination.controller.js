@@ -38,7 +38,10 @@ exports.getAll = async (req, res) => {
         c.contaminated_jars,
         c.contamination_type,
         c.notes,
-        e.full_name,
+        CASE
+          WHEN e.is_active THEN e.full_name
+          ELSE ('Former employee #' || e.id)
+        END AS full_name,
         s.species_name
       FROM contamination_records c
       JOIN employees e ON e.id = c.employee_id
@@ -105,7 +108,7 @@ exports.create = async (req, res) => {
     }
 
     const employeeOwnership = await client.query(
-      `SELECT id FROM employees WHERE id = $1 AND lab_id = $2`,
+      `SELECT id FROM employees WHERE id = $1 AND lab_id = $2 AND is_active = true`,
       [empId, req.user.lab_id]
     );
 

@@ -102,7 +102,7 @@ const getLabSubscriptionById = async (labId) => {
 const getLabUsageById = async (labId) => {
   const [{ rows: userRows }, { rows: employeeRows }, { rows: speciesRows }] = await Promise.all([
     pool.query('SELECT COUNT(*)::int AS count FROM users WHERE lab_id = $1', [labId]),
-    pool.query('SELECT COUNT(*)::int AS count FROM employees WHERE lab_id = $1', [labId]),
+    pool.query('SELECT COUNT(*)::int AS count FROM employees WHERE lab_id = $1 AND is_active = true', [labId]),
     pool.query('SELECT COUNT(*)::int AS count FROM species WHERE lab_id = $1', [labId])
   ]);
 

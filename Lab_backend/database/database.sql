@@ -361,7 +361,9 @@ ALTER SEQUENCE public.daily_operations_id_seq OWNED BY public.daily_operations.i
 CREATE TABLE public.employees (
     id integer NOT NULL,
     full_name character varying(120) NOT NULL,
-    lab_id integer NOT NULL
+    lab_id integer NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    left_at timestamp with time zone
 );
 
 
