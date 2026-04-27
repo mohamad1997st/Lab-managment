@@ -50,11 +50,13 @@ export default function DailyOperations({ currentUser }) {
   const [showSubscriptionAction, setShowSubscriptionAction] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [filters, setFilters] = useState({
-    month: '',
+    date: '',
     employee_id: '',
     species_id: '',
     phase: ''
   });
+
+  const isValidFilterDate = (value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(String(value));
 
   const isAcclimatization = form.phase_of_culture === 'Acclimatization';
   const selectedInventory = asArray(inventory).find((i) => String(i.id) === String(form.inventory_id));
@@ -87,7 +89,7 @@ export default function DailyOperations({ currentUser }) {
     params.append('page', String(newPage));
     params.append('limit', '30');
 
-    if (f.month) params.append('month', f.month);
+    if (f.date && isValidFilterDate(f.date)) params.append('date', f.date);
     if (!isStaff && f.employee_id) params.append('employee_id', f.employee_id);
     if (!isStaff && f.species_id) params.append('species_id', f.species_id);
     if (f.phase) params.append('phase', f.phase);
@@ -138,14 +140,14 @@ export default function DailyOperations({ currentUser }) {
   };
 
   const resetFilters = () => {
-    const empty = { month: '', employee_id: '', species_id: '', phase: '' };
+    const empty = { date: '', employee_id: '', species_id: '', phase: '' };
     setFilters(empty);
     fetchOps(1, empty);
   };
 
   const exportFilteredPdf = async () => {
     const params = new URLSearchParams();
-    if (filters.month) params.append('month', filters.month);
+    if (filters.date && isValidFilterDate(filters.date)) params.append('date', filters.date);
     if (filters.employee_id) params.append('employee_id', filters.employee_id);
     if (filters.species_id) params.append('species_id', filters.species_id);
     if (filters.phase) params.append('phase', filters.phase);
@@ -364,7 +366,7 @@ export default function DailyOperations({ currentUser }) {
         </Stack>
 
         <Typography variant="body2" sx={{ opacity: 0.75, mb: 2 }}>
-          {isStaff ? 'Review your own operations history.' : 'Filter by month, employee, species, or phase.'}
+          {isStaff ? 'Review your own operations history.' : 'Filter by date, employee, species, or phase.'}
         </Typography>
 
         {isStaff && (
@@ -375,11 +377,13 @@ export default function DailyOperations({ currentUser }) {
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
           <TextField
-            label="Month"
-            type="month"
+            label="Date"
+            type="date"
             InputLabelProps={{ shrink: true }}
-            value={filters.month}
-            onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+            value={filters.date}
+            error={!isValidFilterDate(filters.date)}
+            helperText={!isValidFilterDate(filters.date) ? 'Use YYYY-MM-DD' : ''}
+            onChange={(e) => setFilters({ ...filters, date: e.target.value })}
             fullWidth
           />
 
@@ -438,7 +442,7 @@ export default function DailyOperations({ currentUser }) {
                 variant="contained"
                 color="success"
                 onClick={exportFilteredPdf}
-                disabled={!filters.month && !filters.employee_id && !filters.species_id && !filters.phase}
+                disabled={!filters.date && !filters.employee_id && !filters.species_id && !filters.phase}
                 startIcon={<PictureAsPdfIcon />}
               >
                 PDF

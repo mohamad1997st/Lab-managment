@@ -1035,15 +1035,20 @@ exports.dailyMatrixPdf = async (req, res) => {
 };
 exports.operationsPdf = async (req, res) => {
   try {
-    const { month, employee_id, species_id, phase } = req.query;
+    const { month, date, employee_id, species_id, phase } = req.query;
     const labId = req.user.lab_id;
+    const isValidDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 
     // -------- filters SQL
     const params = [labId];
     let where = 'WHERE i.lab_id = $1';
 
-    // month = YYYY-MM
-    if (month) {
+    // date = YYYY-MM-DD (preferred over month)
+    if (date && isValidDate(date)) {
+      params.push(date);
+      where += ` AND d.operations_date::date = $${params.length}::date`;
+    } else if (month) {
+      // month = YYYY-MM
       params.push(month);
       where += ` AND to_char(d.operations_date::date, 'YYYY-MM') = $${params.length}`;
     }
@@ -1146,7 +1151,7 @@ exports.operationsPdf = async (req, res) => {
 
     // Filters line
     const filtersText = [
-      month ? `Month: ${month}` : null,
+      date && isValidDate(date) ? `Date: ${date}` : (month ? `Month: ${month}` : null),
       employee_id ? `Employee: ${employeeName}` : null,
       species_id ? `Species: ${speciesName}` : null,
       phase ? `Phase: ${phase}` : null,

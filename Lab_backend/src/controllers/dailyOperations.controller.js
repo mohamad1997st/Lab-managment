@@ -19,7 +19,8 @@ exports.getAll = async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 200);
     const offset = (page - 1) * limit;
 
-    const { month, employee_id, species_id, phase } = req.query;
+    const { month, date, employee_id, species_id, phase } = req.query;
+    const isValidDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 
     const params = [];
     let where = 'WHERE i.lab_id = $1';
@@ -40,7 +41,10 @@ exports.getAll = async (req, res) => {
       where += ` AND d.employee_id = $${params.length}`;
     }
 
-    if (month) {
+    if (date && isValidDate(date)) {
+      params.push(date);
+      where += ` AND d.operations_date::date = $${params.length}::date`;
+    } else if (month) {
       params.push(month);
       where += ` AND to_char(d.operations_date::date, 'YYYY-MM') = $${params.length}`;
     }
